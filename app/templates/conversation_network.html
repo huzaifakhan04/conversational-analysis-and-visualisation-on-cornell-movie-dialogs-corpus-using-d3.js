@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Conversation Network</title>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <style>
+
+            body
+            
+            {
+
+                background-color: #f8f8f8;
+                margin: 0;
+                overflow: hidden;
+
+            }
+
+            #graph-container
+            
+            {
+
+                width: 100vw;
+                height: 100vh;
+
+            }
+
+            svg
+            
+            {
+
+                background-color: #f8f8f8;
+
+            }
+
+            .link
+            
+            {
+
+                stroke: #ccc;
+                stroke-opacity: 0.6;
+
+            }
+
+            .node
+            
+            {
+
+                stroke: rgba(240, 240, 240, 0.8);
+                stroke-width: 2px;
+
+            }
+
+            .text
+            
+            {
+
+                font-size: 6px;
+                pointer-events: none;
+                font-family: "Arial", sans-serif;
+                fill: #777;
+
+            }
+
+            .copyright
+                
+            {
+
+                text-align: center;
+                font-family: "Arial", sans-serif;
+                color: #555;
+                position: fixed;
+                bottom: 0;
+                width: 100%;
+                font-size: 12px;
+                margin-top: 0;
+                padding-bottom: 1rem;
+
+            }
+
+        </style>
+    </head>
+    <body>
+        <div id="graph-container"></div>
+        <script>
+
+            var data={{ data | safe }};
+
+            var svg=d3.select("#graph-container").append("svg")
+                    .attr("width", "100%")
+                    .attr("height", "100%")
+                    .call(d3.zoom().on("zoom", function () {
+
+                        svg.attr("transform", d3.event.transform);
+
+                    }))
+                    .append("g")
+                    .attr("transform", "translate(50,50)");
+
+            var simulation=d3.forceSimulation()
+                .force("link", d3.forceLink().id(function(d) { return d.id; }).distance(200).strength(0.8))
+                .force("charge", d3.forceManyBody().strength(-100))
+                .force("center", d3.forceCenter(window.innerWidth/2, window.innerHeight/2));
+
+            var link=svg.selectAll(".link")
+                .data(data)
+                .enter().append("line")
+                .attr("class", "link")
+                .attr("stroke-width", 1)
+                .attr("marker-end", "url(#arrow)");
+
+            svg.append("defs").append("marker")
+                .attr("id", "arrow")
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 30)
+                .attr("refY", 0)
+                .attr("markerWidth", 5)
+                .attr("markerHeight", 5)
+                .attr("orient", "auto")
+                .append("path")
+                .attr("d", "M0, -5L10, 0L0, 5");
+
+            var nodeIDs=Array.from(new Set([].concat(data.map(d => d.source), data.map(d => d.target))));
+
+            var color=d3.scaleOrdinal(d3.schemeSet3)
+                .domain(nodeIDs);
+
+            var node=svg.selectAll(".node")
+                .data(d3.merge([data.map(d => ({id: d.source})), data.map(d => ({id: d.target}))]))
+                .enter().append("circle")
+                .attr("class", "node")
+                .attr("r", 10)
+                .attr("fill", function(d) { return color(d.id); });
+
+            var text=svg.selectAll(".text")
+                .data(data)
+                .enter().append("text")
+                .attr("class", "text")
+                .attr("text-anchor", "middle")
+                .attr("dy", -5)
+                .attr("font-size", 6)
+                .attr("font-family", "sans-serif")
+                .attr("fill", "#777")
+                .attr("font-weight", "bold")
+                .attr("pointer-events", "none")
+                .attr("text-anchor", "middle")
+                .attr("alignment-baseline", "middle")
+                .attr("x", function (d) {
+
+                    return ((d.source.x+d.target.x)/2);
+
+                })
+                .attr("y", function (d) {
+
+                    return ((d.source.y+d.target.y)/2);
+
+                })
+                .text(function(d) { return d.text; });
+
+            svg.append("text")
+                .attr("x", window.innerWidth/2)
+                .attr("y", window.innerHeight/2)
+                .attr("dy", "-1em")
+                .attr("text-anchor", "middle")
+                .attr("font-size", "34px")
+                .attr("font-family", "sans-serif")
+                .attr("fill", "black")
+                .attr("font-weight", "bold")
+                .text("Conversation Network");
+
+            simulation.nodes([].concat(node.data()))
+                .on("tick", ticked);
+
+            simulation.force("link")
+                .links(data);
+
+            function ticked()
+            
+            {
+
+                link.attr("x1", function (d) {
+
+                        return d.source.x;
+
+                    })
+                    .attr("y1", function (d) {
+
+                        return d.source.y;
+
+                    })
+                    .attr("x2", function (d) {
+
+                        return d.target.x;
+
+                    })
+                    .attr("y2", function (d) {
+
+                        return d.target.y;
+
+                    });
+
+                node.attr("cx", function (d) {
+
+                        return d.x;
+
+                    })
+                    .attr("cy", function (d) {
+
+                        return d.y;
+
+                    });
+
+                text.attr("transform", function (d) {
+
+                        var angle=Math.atan2(d.target.y-d.source.y, d.target.x-d.source.x)*(180/Math.PI);
+                        return "translate("+((d.source.x+d.target.x)/2)+","+((d.source.y+d.target.y)/2)+") rotate("+angle+")";
+
+                    });
+
+            }
+
+            node.call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+            function dragstarted(d) {
+
+                if(!d3.event.active) simulation.alphaTarget(0.3).restart();
+                d.fx=d.x;
+                d.fy=d.y;
+
+            }
+
+            function dragged(d) {
+
+                d.fx=d3.event.x;
+                d.fy=d3.event.y;
+
+            }
+
+            function dragended(d) {
+
+                if(!d3.event.active) simulation.alphaTarget(0);
+                d.fx=null;
+                d.fy=null;
+
+            }
+
+            node.on("mouseover", function (d) {
+
+                link.style("stroke", function (l) {
+
+                    if(d===l.source || d===l.target)
+                    {
+                        return "#777";
+                    }
+                    else
+                    {
+                        return "#cccccc";
+                    }
+                });
+
+                text.style("fill", function (l) {
+                    if(d===l.source || d===l.target)
+                    {
+                        return "#777";
+                    }
+                    else
+                    {
+                        return "#777";
+                    }
+                });
+
+                d3.select(this).style("stroke", color(d.id)).style("stroke-width", 2);
+
+            });
+
+            node.on("mouseout", function (d) {
+
+                link.style("stroke", "#cccccc");
+                text.style("fill", "#777");
+                d3.select(this).style("stroke", "rgba(240, 240, 240, 0.8)").style("stroke-width", 2);
+                
+            });
+
+            node.append("title")
+                .text(function (d) {
+
+                    return d.id;
+                    
+                });
+
+        </script>
+        <div class="copyright">
+            &copy; Copyright 2023. Made with 💜 by Huzaifa Khan & Areeba Riaz.
+        </div>
+    </body>
+</html>
